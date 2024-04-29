@@ -1,0 +1,92 @@
+<?php
+
+$eventManager = \Bitrix\Main\EventManager::getInstance();
+$eventManager->addEventHandler('main', 'OnUserTypeBuildList', array('CUserTypeSectionsHtmlField', 'getUserTypeDescription'));
+
+class CUserTypeSectionsHtmlField extends \Bitrix\Main\UserField\Types\BaseType
+{
+    public const
+    //  USER_TYPE_ID = 'string',
+    RENDER_COMPONENT = 'bitrix:main.field.string';
+    
+    public static function getUserTypeDescription():array
+    {
+        
+        return [
+            'USER_TYPE_ID' => 'sections_html_field',
+            'CLASS_NAME'   => __CLASS__,
+            'DESCRIPTION'  => 'HTML/text',
+            'EDIT_CALLBACK' => [static::class, 'getEditFormHtml'],
+            'VIEW_CALLBACK' => [static::class, 'renderView'],
+            'USE_FIELD_COMPONENT' => true,
+            'BASE_TYPE' => 'string',
+        ];
+    }
+    
+    public static function getDbColumnType(): string
+    {
+        return 'text';
+    }
+    public static function CheckFields($arUserField, $value)
+    {
+        $aMsg = array();
+        return $aMsg;
+    }
+    
+    public static function getEditFormHtml($arUserField, $arHtmlControl):string
+    {
+        if ($arUserField["ENTITY_VALUE_ID"] < 1 && strlen($arUserField["SETTINGS"]["DEFAULT_VALUE"]) > 0)
+            $arHtmlControl["VALUE"] = htmlspecialchars($arUserField["SETTINGS"]["DEFAULT_VALUE"]);
+            ob_start();
+            CFileMan::AddHTMLEditorFrame($arHtmlControl["NAME"], $arHtmlControl["VALUE"], "html", "html", 200, "N", 0, "", "", "s1");
+            $b = ob_get_clean();
+            return $b;
+    }
+    public static function prepareSettings(array $userField): array
+    {
+        
+        $size = (int)$userField['SETTINGS']['SIZE'];
+        $rows = (int)$userField['SETTINGS']['ROWS'];
+        $min = (int)$userField['SETTINGS']['MIN_LENGTH'];
+        $max = (int)$userField['SETTINGS']['MAX_LENGTH'];
+        
+        $regExp = '';
+        if (
+            !empty($userField['SETTINGS']['REGEXP'])
+            &&
+            //Checking the correctness of the regular expression entered by the user
+            @preg_match($userField['SETTINGS']['REGEXP'], null) !== false
+            )
+        {
+            $regExp = $userField['SETTINGS']['REGEXP'];
+        }
+        
+        return [
+            'SIZE' => ($size <= 1 ? 20 : ($size > 255 ? 225 : $size)),
+            'ROWS' => ($rows <= 1 ? 1 : ($rows > 50 ? 50 : $rows)),
+            'REGEXP' => $regExp,
+            'MIN_LENGTH' => $min,
+            'MAX_LENGTH' => $max,
+            'DEFAULT_VALUE' => $userField['SETTINGS']['DEFAULT_VALUE'],
+        ];
+    }
+    public static function GetEditFormHTMLMulty($arUserField, $arHtmlControl)
+    {
+        $html = 'Поле не может быть множественным!';
+        return $html;
+    }
+    
+    public static function GetFilterHTML($arUserField, $arHtmlControl):string
+    {
+        $sVal = intval($arHtmlControl['VALUE']);
+        $sVal = $sVal > 0 ? $sVal : '';
+        
+        return CUserTypeSectionsHtmlField::GetEditFormHTML($arUserField, $arHtmlControl);
+    }
+    
+    
+    public static function OnBeforeSave($arUserField, $value)
+    {
+        return $value;
+    }
+}
