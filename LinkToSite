@@ -1,0 +1,81 @@
+<?php
+
+$eventManager = \Bitrix\Main\EventManager::getInstance();
+$eventManager->addEventHandler('main', 'OnUserTypeBuildList', array('CUserTypeSectionsLinkToSite', 'getUserTypeDescription'));
+
+class CUserTypeSectionsLinkToSite extends \Bitrix\Main\UserField\Types\BaseType
+{
+    public const
+      //  USER_TYPE_ID = 'string',
+        RENDER_COMPONENT = 'main.field.enum';
+
+    public static function getUserTypeDescription():array
+    {
+
+        return [
+          'USER_TYPE_ID' => 'sections_link_to_site',
+            'CLASS_NAME'   => __CLASS__,
+            'DESCRIPTION'  => 'Привязка к сайту',
+            'EDIT_CALLBACK' => [static::class, 'getEditFormHtml'],
+            'VIEW_CALLBACK' => [static::class, 'renderView'],
+            'USE_FIELD_COMPONENT' => true,
+            'BASE_TYPE' => 'string',
+        ];
+    }
+
+    public static function getDbColumnType(): string
+    {
+        return 'text';
+    }
+    public static function CheckFields($arUserField, $value)
+    {
+        $aMsg = array();
+        return $aMsg;
+    }
+
+    public static function getEditFormHtml($arUserField, $arHtmlControl):string
+    {
+        $return = "";       
+
+        $arSite = CSite::GetList($by="sort", $order="desc", Array());
+        
+        if($arUserField["MULTIPLE"] == "Y"){
+            
+            $arValues = array();
+            foreach($arHtmlControl["VALUE"] as $v){ $arValues[] = $v["VALUE"];}
+            
+            while ($site = $arSite->Fetch())
+            {
+                $return .= "<label><input type='checkbox' name='".$arHtmlControl['VALUE']."[]' ".(in_array($site['ID'],$arValues)?'checked':'')." 
+                value='".$site['ID']."'>[".$site['ID']."] ".$site['NAME']."</label><br />";
+            }
+            
+        }else{
+            $return = "<select name='".$arHtmlControl['NAME']."'><option value=''>Выберите сайт</option>";
+            while ($site = $arSite->Fetch())
+            {
+                $return .= "<option ".($site['ID'] == $arHtmlControl["VALUE"]?'selected':'')." value='".$site['ID']."'>[".$site['ID']."] ".$site['NAME']."</option>";
+            }
+            
+            $return .= "</select>";
+        }
+ 
+        return $return;
+    }
+
+
+    public static function GetFilterHTML($arUserField, $arHtmlControl):string
+    {
+        $sVal = intval($arHtmlControl['VALUE']);
+        $sVal = $sVal > 0 ? $sVal : '';
+
+        return CUserTypeSectionsLinkToSite::GetEditFormHTML($arUserField, $arHtmlControl);
+    }
+
+
+    public static function OnBeforeSave($arUserField, $value)
+    {
+
+        return $value;
+    }
+}
