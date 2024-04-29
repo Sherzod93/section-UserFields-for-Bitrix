@@ -1,0 +1,197 @@
+<?php
+
+
+$eventManager = \Bitrix\Main\EventManager::getInstance();
+$eventManager->addEventHandler("main", "OnUserTypeBuildList", ['PropStringDesc', "GetUserTypeDescription"]);
+
+class PropStringDesc extends \Bitrix\Main\UserField\Types\BaseType 
+{
+    public const
+    USER_TYPE_ID = 'string',
+    RENDER_COMPONENT = 'bitrix:main.field.string';
+    public static function getUserTypeDescription() : array 
+    {
+        return [
+            'USER_TYPE_ID' => 'PropStringDesc',
+            'CLASS_NAME'   => __CLASS__,
+            'DESCRIPTION'  => 'Строка с описанием',
+            'EDIT_CALLBACK' => [static::class, 'getEditFormHtml'],
+            'VIEW_CALLBACK' => [static::class, 'renderView'],
+            'USE_FIELD_COMPONENT' => true,
+        ];
+    }
+    
+    public static function getDbColumnType(): string
+    {
+        return 'text';
+    }
+    
+    public static function prepareSettings(array $userField): array
+    {
+ 
+        $size = (int)$userField['SETTINGS']['SIZE'];
+        $rows = (int)$userField['SETTINGS']['ROWS'];
+        $min = (int)$userField['SETTINGS']['MIN_LENGTH'];
+        $max = (int)$userField['SETTINGS']['MAX_LENGTH'];
+        
+        $regExp = '';
+        if (
+            !empty($userField['SETTINGS']['REGEXP'])
+            &&
+            //Checking the correctness of the regular expression entered by the user
+            @preg_match($userField['SETTINGS']['REGEXP'], null) !== false
+            )
+        {
+            $regExp = $userField['SETTINGS']['REGEXP'];
+        }
+        
+        return [
+            'SIZE' => ($size <= 1 ? 20 : ($size > 255 ? 225 : $size)),
+            'ROWS' => ($rows <= 1 ? 1 : ($rows > 50 ? 50 : $rows)),
+            'REGEXP' => $regExp,
+            'MIN_LENGTH' => $min,
+            'MAX_LENGTH' => $max,
+            'DEFAULT_VALUE' => $userField['SETTINGS']['DEFAULT_VALUE'],
+        ];
+    }
+    public static function getEditFormHtml(array $userField, ?array $additionalParameters): string
+    {
+        $fieldName = $additionalParameters["NAME"]; 
+        $fieldSettings = $userField["SETTINGS"];
+       
+        ob_start();?>
+        <style>
+        #<?=$fieldName?>_contentTable > tbody > tr > td{
+            vertical-align:top;
+        }
+        </style> 
+        <table border="0" cellspacing="0" cellpadding="0" width="100%" class="internal" id="<?=$fieldName?>_contentTable">
+                <tbody>
+                <tr class="heading">
+                    <td>Строка</td>
+                    <td>Описание</td>
+                </tr>
+                
+<?php if($userField["MULTIPLE"] == "Y"){
+
+        
+        $arAllResult = $additionalParameters["VALUE"][0];     
+        
+        if($arAllResult){
+            
+            foreach ($arAllResult as $key=> $value) { $count++;?>
+        <tr>
+        <td align="center">
+                <input type="text" size="<?=$fieldSettings["SIZE"]?>" name="<?=$fieldName?>[NAME][<?=$key?>]" value="<?=$value["NAME"]?>" />
+        </td>
+        <td align="center">
+                        <textarea cols="<?=$fieldSettings["SIZE"]?>" rows="<?=$fieldSettings["ROWS"]?>"  name="<?=$fieldName?>[DESC][<?=$key?>]"><?=$value["DESC"]?></textarea>
+        </td>
+            </tr>
+      <?}
+       
+        }else{?>
+		      <tr>
+                    <td align="center">                    	
+                        <input type="text" name="<?=$fieldName?>[NAME][0]" />
+                    </td>
+                    <td align="center">
+                      <textarea type="text" cols="<?=$fieldSettings["SIZE"]?>" rows="<?=$fieldSettings["ROWS"]?>" name="<?=$fieldName?>[DESC][0]"></textarea>
+                    </td>
+            </tr>
+		<?php }?>
+		
+     		<input type="hidden" id="<?=$fieldName?>_itemCount" value="<?=$count?>"/>
+   
+           <tr><td><input type="button" value="Добавить" class="addTrTagButton" onclick="addTableRow()"></td><td></td></tr>
+<?php }else{?>
+            <tr>
+                    <td align="center">
+                        <input type="text" name="<?=$fieldName?>[NAME]" value="<?=$additionalParameters["VALUE"]["NAME"]?>" />
+                    </td>
+                    <td align="center">
+                        <input type="text" name="<?=$fieldName?>[DESC]" value="<?=$additionalParameters["VALUE"]["DESC"]?>" />
+                    </td>
+            </tr>
+        <?php }?>
+      </tbody></table> 
+      <script>
+
+ var counter = document.getElementById("<?=$fieldName?>_itemCount").value;
+ function addTableRow() {
+    var nameInput = document.querySelector(`input[name^="<?=$fieldName?>[NAME]"]`);
+    var descInput = document.querySelector(`textarea[name^="<?=$fieldName?>[DESC]"]`);
+    
+    if(nameInput && descInput){    	
+    
+    var newNameInput = nameInput.cloneNode(true);
+    var newDescInput = descInput.cloneNode(true);
+  
+     if(!counter){
+     	counter = 1;
+     }
+    newNameInput.name = "<?=$fieldName?>[NAME]["+counter+"]";
+    newDescInput.name = "<?=$fieldName?>[DESC]["+counter+"]";
+    newNameInput.value = "";
+    newDescInput.value = "";
+    
+	counter++;
+	
+    var newRow = document.createElement("tr");
+    newRow.innerHTML = `<td align="center"></td><td align="center"></td>`; 
+    newRow.querySelector("td:first-child").appendChild(newNameInput);
+    newRow.querySelector("td:last-child").appendChild(newDescInput); 
+
+   
+  var buttonRow = document.querySelector(`input[type="button"][class="addTrTagButton"]`).parentNode.parentNode;
+  
+  buttonRow.parentNode.insertBefore(newRow, buttonRow);
+	}else{
+		console.log("Элемент не найден");
+	}
+}
+
+</script>
+      <?php $html = ob_get_contents();ob_end_clean();
+
+        return $html;
+    }
+    
+    
+    public static function OnBeforeSave($arUserField, $value): string
+    {      
+
+        foreach ($_POST[$arUserField['FIELD_NAME']]["NAME"] as $name) {
+            if($name){
+                $arData["NAME"][] = $name; 
+            }
+        }
+        foreach ($_POST[$arUserField['FIELD_NAME']]["DESC"] as $desc) {
+            if($desc){
+                $arData["DESC"][] = $desc;
+            }
+        }
+        foreach ($arData["NAME"] as $key=>$value) {
+            $result[] = ["NAME"=>$value,"DESC"=>$arData["DESC"][$key]];
+        }
+   
+       if(!$arData){
+           $result[] = ["NAME"=>"","DESC"=>""];
+        } 
+           
+        $value = \Bitrix\Main\Web\Json::encode($result);
+        return $value;
+    }
+    
+    
+    public static function onAfterFetch($arProperty, $arValue): array
+    {
+
+        if (!empty($arValue["VALUE"])) {
+            $arValue = \Bitrix\Main\Web\Json::decode(html_entity_decode($arValue["VALUE"]));
+        }
+        
+        return $arValue;
+    }
+}
+?>
